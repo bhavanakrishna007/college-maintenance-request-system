@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Maintenance & Request System | DBMS Laboratory Project</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom Modern Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="role-reporter">
+
+    <!-- =====================================================================
+         1. ROLE SELECTION & LOGIN GATEWAY
+         ===================================================================== -->
+    <div id="login-gateway" class="login-gateway-container">
+        <div class="login-gateway-card">
+            
+            <div class="login-gateway-header">
+                <div class="login-course-badge">
+                    <i class="fas fa-database"></i> Course 24CS305 / CS3106 &bull; DBMS Laboratory Project
+                </div>
+                <h1>College Maintenance & Request System</h1>
+                <p>Select your user category and sign in to access your portal</p>
+            </div>
+
+            <!-- 3 Distinct Role Selector Cards (Student & Faculty unified to avoid duplication) -->
+            <div class="role-cards-grid">
+                <!-- Card 1: Student & Faculty -->
+                <div class="role-select-card active" data-role="student_faculty" onclick="selectGatewayRole('student_faculty')">
+                    <div class="role-card-radio"><i class="fas fa-circle-check"></i></div>
+                    <div class="role-icon-wrap role-icon-student">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <div class="role-card-title">Student / Faculty</div>
+                    <div class="role-card-scope">Report campus faults & track complaint status</div>
+                </div>
+
+                <!-- Card 2: Technician -->
+                <div class="role-select-card" data-role="technician" onclick="selectGatewayRole('technician')">
+                    <div class="role-card-radio"><i class="fas fa-circle-check"></i></div>
+                    <div class="role-icon-wrap role-icon-tech">
+                        <i class="fas fa-wrench"></i>
+                    </div>
+                    <div class="role-card-title">Technician</div>
+                    <div class="role-card-scope">Assigned repairs, select materials & resolve</div>
+                </div>
+
+                <!-- Card 3: Administrator -->
+                <div class="role-select-card" data-role="admin" onclick="selectGatewayRole('admin')">
+                    <div class="role-card-radio"><i class="fas fa-circle-check"></i></div>
+                    <div class="role-icon-wrap role-icon-admin">
+                        <i class="fas fa-shield-halved"></i>
+                    </div>
+                    <div class="role-card-title">Administrator</div>
+                    <div class="role-card-scope">Full oversight, assign techs & audit materials</div>
+                </div>
+            </div>
+
+            <!-- Login Form -->
+            <div class="auth-form-box">
+                <div class="auth-form-title">
+                    <span><i class="fas fa-lock"></i> Authentication</span>
+                    <span id="gateway-active-role-desc">Signing in as Student / Faculty</span>
+                </div>
+
+                <form id="gateway-login-form" onsubmit="handleGatewayLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="gateway-username">Username</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-user"></i>
+                            <input type="text" id="gateway-username" class="form-input" placeholder="Enter username" required autocomplete="username" value="">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="gateway-password">Password</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-key"></i>
+                            <input type="password" id="gateway-password" class="form-input" placeholder="Enter password" required autocomplete="current-password" value="">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="gateway-submit-btn" class="btn btn-primary btn-block">
+                        <i class="fas fa-arrow-right-to-bracket"></i> Sign In to Portal
+                    </button>
+                </form>
+            </div>
+            
+            <div class="gateway-footer-note">
+                <i class="fas fa-circle-info"></i> Normalized Relational Database (MySQL 8.0) &bull; Stored Procedures &bull; Triggers &bull; Views
+            </div>
+
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         2. AUTHENTICATED WORKSPACE PORTAL (ROLE-CUSTOMIZED)
+         ===================================================================== -->
+    <div id="main-app-portal" class="main-portal-wrap" style="display:none;">
+
+        <!-- TOP NAVIGATION BAR -->
+        <header class="top-nav">
+            <div class="brand-section">
+                <div class="brand-logo">
+                    <i class="fas fa-screwdriver-wrench"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>College Maintenance & Request System</h1>
+                    <p>Course 24CS305 / CS3106 &bull; DBMS Laboratory Mini Project</p>
+                </div>
+            </div>
+
+            <div class="nav-actions">
+                <!-- User Profile Badge -->
+                <div id="topbar-user-badge" class="user-profile-badge">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Loading...</span>
+                </div>
+
+                <!-- Switch Role / Logout -->
+                <button class="btn btn-secondary btn-sm" onclick="handleLogout()" title="Change role or sign in as another user">
+                    <i class="fas fa-arrow-right-from-bracket"></i> Switch Role
+                </button>
+            </div>
+        </header>
+
+        <!-- PORTAL MAIN CONTAINER -->
+        <div class="app-container">
+
+            <!-- SIDEBAR NAVIGATION -->
+            <aside class="app-sidebar">
+                <span class="sidebar-heading">Navigation Menu</span>
+
+                <!-- REPORTER (STUDENT & FACULTY: SINGLE UNIFIED COMPLAINTS TAB) -->
+                <button class="nav-item reporter-nav active" data-tab="requests-tab">
+                    <i class="fas fa-clipboard-list"></i>
+                    <span>My Complaints</span>
+                </button>
+
+                <!-- TECHNICIAN: ONLY ASSIGNED WORK & PARTS CATALOG -->
+                <button class="nav-item tech-nav active" data-tab="workflow-tab">
+                    <i class="fas fa-toolbox"></i>
+                    <span>Technician Workbench</span>
+                    <span class="nav-badge" id="tech-badge-count">Tasks</span>
+                </button>
+                <button class="nav-item tech-nav" data-tab="inventory-tab">
+                    <i class="fas fa-boxes-stacked"></i>
+                    <span>Parts Catalog</span>
+                </button>
+
+                <!-- ADMIN: FULL CAMPUS OVERSIGHT -->
+                <button class="nav-item admin-nav active" data-tab="dashboard-tab">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-item admin-nav" data-tab="requests-tab">
+                    <i class="fas fa-list-check"></i>
+                    <span>All Requests (CRUD)</span>
+                </button>
+                <button class="nav-item admin-nav" data-tab="workflow-tab">
+                    <i class="fas fa-user-gear"></i>
+                    <span>Technician Assignments</span>
+                </button>
+                <button class="nav-item admin-nav" data-tab="inventory-tab">
+                    <i class="fas fa-warehouse"></i>
+                    <span>Spare Parts & Inventory</span>
+                </button>
+
+                <!-- ADMIN DBMS ANALYTICS -->
+                <span class="sidebar-heading admin-nav" style="margin-top: 1rem;">DBMS Analytics</span>
+                <button class="nav-item admin-nav" data-tab="reports-tab">
+                    <i class="fas fa-database"></i>
+                    <span>Views & Reports</span>
+                </button>
+                <button class="nav-item admin-nav" data-tab="system-tab">
+                    <i class="fas fa-server"></i>
+                    <span>Database Health</span>
+                </button>
+            </aside>
+
+            <!-- MAIN CONTENT DISPLAY AREA -->
+            <main class="app-main">
+
+                <!-- =========================================================
+                     TAB 1: REQUESTS LIST (UNIFIED COMPLAINT PORTAL)
+                     ========================================================= -->
+                <section id="requests-tab" class="tab-pane active">
+                    <div class="section-header">
+                        <div>
+                            <h2 class="section-title" id="requests-page-title">My Reported Issues</h2>
+                            <p class="section-desc" id="requests-page-desc">Track status, assigned technicians, and resolution timeline</p>
+                        </div>
+                        <!-- LODGE NEW TICKET BUTTON -->
+                        <div class="header-actions">
+                            <button class="btn btn-primary" onclick="openNewRequestModal()">
+                                <i class="fas fa-plus"></i> <span id="btn-new-ticket-label">Report Issue</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filter & Search Toolbar -->
+                    <div class="filter-toolbar">
+                        <div class="filter-group">
+                            <div class="search-input-wrap">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="req-search" class="form-control" placeholder="Search by code, title, room, user...">
+                            </div>
+                            <select id="filter-status" class="select-control">
+                                <option value="All">All Statuses</option>
+                                <option value="Reported">Reported</option>
+                                <option value="Categorized">Categorized</option>
+                                <option value="Assigned">Assigned</option>
+                                <option value="In-Progress">In-Progress</option>
+                                <option value="Resolved">Resolved</option>
+                            </select>
+                            <select id="filter-priority" class="select-control">
+                                <option value="All">All Priorities</option>
+                                <option value="Emergency">Emergency</option>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                            <select id="filter-category" class="select-control">
+                                <option value="All">All Categories</option>
+                            </select>
+                        </div>
+
+                        <div class="records-pill" id="request-total-count">0 records</div>
+                    </div>
+
+                    <!-- Requests Table -->
+                    <div class="table-responsive styled-table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Tracking Code</th>
+                                    <th>Issue & Location</th>
+                                    <th>Category</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Reported By</th>
+                                    <th>Technician</th>
+                                    <th>Date Logged</th>
+                                    <th style="text-align:center;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="requests-table-body">
+                                <tr><td colspan="9" class="table-empty-row">Loading maintenance records...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- =========================================================
+                     TAB 2: EXECUTIVE DASHBOARD (ADMIN ONLY)
+                     ========================================================= -->
+                <section id="dashboard-tab" class="tab-pane">
+                    <div class="section-header">
+                        <div>
+                            <h2 class="section-title">Campus Maintenance Overview</h2>
+                            <p class="section-desc">Real-time status tracking, workload metrics, and parts consumption analytics</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">
+                                <i class="fas fa-sync-alt"></i> Refresh Metrics
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Low Stock Alert Banner -->
+                    <div id="dashboard-stock-alert" class="dashboard-alert-banner" style="display:none;" onclick="switchTab('inventory-tab')"></div>
+
+                    <!-- 6 Metric Stat Cards -->
+                    <div class="metrics-grid">
+                        <div class="stat-card blue" onclick="filterRequestsByDashboard('All')">
+                            <div class="stat-header">
+                                <span class="stat-title">Total Requests</span>
+                                <div class="stat-icon"><i class="fas fa-clipboard-check"></i></div>
+                            </div>
+                            <div class="stat-value" id="stat-total-requests">0</div>
+                            <div class="stat-footer">Across all campus blocks</div>
+                        </div>
+
+                        <div class="stat-card amber" onclick="filterRequestsByDashboard('Reported')">
+                            <div class="stat-header">
+                                <span class="stat-title">Pending Allocation</span>
+                                <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                            </div>
+                            <div class="stat-value" id="stat-pending">0</div>
+                            <div class="stat-footer">Reported & Categorized</div>
+                        </div>
+
+                        <div class="stat-card indigo" onclick="filterRequestsByDashboard('In-Progress')">
+                            <div class="stat-header">
+                                <span class="stat-title">In-Progress Work</span>
+                                <div class="stat-icon"><i class="fas fa-screwdriver-wrench"></i></div>
+                            </div>
+                            <div class="stat-value" id="stat-in-progress">0</div>
+                            <div class="stat-footer">Active repairs on-site</div>
+                        </div>
+
+                        <div class="stat-card emerald" onclick="filterRequestsByDashboard('Resolved')">
+                            <div class="stat-header">
+                                <span class="stat-title">Resolved Issues</span>
+                                <div class="stat-icon"><i class="fas fa-circle-check"></i></div>
+                            </div>
+                            <div class="stat-value" id="stat-resolved">0</div>
+                            <div class="stat-footer">Completed & signed off</div>
+                        </div>
+
+                        <div class="stat-card purple" onclick="switchTab('reports-tab')">
+                            <div class="stat-header">
+                                <span class="stat-title">Available Techs</span>
+                                <div class="stat-icon"><i class="fas fa-user-gear"></i></div>
+                            </div>
+                            <div class="stat-value" id="stat-techs">0</div>
+                            <div class="stat-footer">Ready for assignment</div>
+                        </div>
+
+                        <div class="stat-card teal" onclick="switchTab('reports-tab')">
+                            <div class="stat-header">
+                                <span class="stat-title">Materials Cost</span>
+                                <div class="stat-icon"><i class="fas fa-indian-rupee-sign"></i></div>
+                            </div>
+                            <div class="stat-value" id="stat-cost">₹0.00</div>
+                            <div class="stat-footer">Aggregated parts spend</div>
+                        </div>
+                    </div>
+
+                    <!-- Split Grid: Urgent Tickets & Category Breakdown -->
+                    <div class="dashboard-split">
+                        <div class="content-card">
+                            <div class="card-title">
+                                <span><i class="fas fa-triangle-exclamation text-danger"></i> Urgent Issues Needing Attention</span>
+                                <a href="javascript:void(0)" onclick="switchTab('requests-tab')" class="card-action-link">View All</a>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>Issue & Location</th>
+                                            <th>Priority</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashboard-urgent-table">
+                                        <tr><td colspan="4" class="table-empty-row">Loading urgent issues...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="content-card">
+                            <div class="card-title">
+                                <span><i class="fas fa-chart-pie text-primary"></i> Category Volume Breakdown</span>
+                            </div>
+                            <div class="chart-container-wrap">
+                                <canvas id="categoryDoughnutChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- =========================================================
+                     TAB 3: TECHNICIAN WORKBENCH & WORK ORDER EXECUTION
+                     ========================================================= -->
+                <section id="workflow-tab" class="tab-pane">
+
+                    <!-- Technician Profile Bar (Visible only for Technician) -->
+                    <div id="tech-profile-bar" class="tech-profile-card technician-only">
+                        <div class="tech-profile-left">
+                            <div class="tech-profile-avatar"><i class="fas fa-user-wrench"></i></div>
+                            <div>
+                                <div class="tech-profile-title" id="tech-profile-name">Technician Workbench</div>
+                                <div class="tech-profile-meta">
+                                    Specialization: <strong id="tech-profile-spec">-</strong> &bull; Hourly Rate: <strong id="tech-profile-rate">₹0.00</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tech-stat-pills-group">
+                            <span class="tech-stat-pill"><i class="fas fa-tasks"></i> Assigned: <strong id="tech-stat-total">0</strong></span>
+                            <span class="tech-stat-pill pill-amber"><i class="fas fa-hourglass-start"></i> To Start: <strong id="tech-stat-pending">0</strong></span>
+                            <span class="tech-stat-pill pill-blue"><i class="fas fa-wrench"></i> In-Progress: <strong id="tech-stat-inprog">0</strong></span>
+                            <span class="tech-stat-pill pill-green"><i class="fas fa-check-circle"></i> Resolved: <strong id="tech-stat-completed">0</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="section-header" style="margin-bottom: 1rem;">
+                        <div>
+                            <h2 class="section-title" id="workflow-page-title">Work Order Execution</h2>
+                        </div>
+                    </div>
+
+                    <!-- Split Layout: Job List & Action Console -->
+                    <div class="dashboard-split">
+                        
+                        <!-- Left Column: Job Selector -->
+                        <div class="content-card">
+                            <div class="card-title">
+                                <span id="wf-list-header-title"><i class="fas fa-list-check text-primary"></i> Maintenance Jobs</span>
+                            </div>
+                            <div id="wf-request-selector-list" class="wf-selector-container">
+                                <div class="table-empty-row">Loading maintenance jobs...</div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Interactive Console -->
+                        <div class="content-card">
+                            <div class="card-title">
+                                <span><i class="fas fa-screwdriver-wrench text-secondary"></i> Job Execution & Materials</span>
+                            </div>
+
+                            <!-- Selected Job Banner -->
+                            <div id="wf-selected-banner" class="wf-selection-banner">
+                                Select a maintenance job from the left column to view details and execute actions.
+                            </div>
+
+                            <!-- STEP A: ADMIN ALLOCATE TECHNICIAN (ADMIN ONLY) -->
+                            <div class="admin-only wf-action-block">
+                                <label class="wf-block-label"><i class="fas fa-user-plus text-primary"></i> Allocate Qualified Technician</label>
+                                <div class="form-row" style="margin-bottom:0.75rem;">
+                                    <select id="wf-tech-select" class="form-input"></select>
+                                </div>
+                                <button class="btn btn-primary btn-sm" onclick="executeAssignTechnician()">
+                                    <i class="fas fa-user-check"></i> Assign Technician (sp_assign_technician)
+                                </button>
+                            </div>
+
+                            <!-- STEP B: START ON-SITE WORK (TECHNICIAN & ADMIN) -->
+                            <div id="wf-start-work-block" class="wf-action-block">
+                                <label class="wf-block-label"><i class="fas fa-play text-info"></i> Start Work on Site</label>
+                                <input type="text" id="wf-start-notes" class="form-input" value="Technician arrived on site with required diagnostic tools." style="margin-bottom:0.75rem;">
+                                <button class="btn btn-secondary btn-sm" onclick="executeStartWork()">
+                                    <i class="fas fa-wrench"></i> Start Work (Mark In-Progress)
+                                </button>
+                            </div>
+
+                            <!-- STEP C: SELECT REQUIRED MATERIALS (TECHNICIAN ONLY - ADMIN CANNOT SELECT) -->
+                            <div id="wf-materials-select-block" class="technician-only wf-action-block wf-block-materials">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.65rem;">
+                                    <label class="wf-block-label text-teal" style="margin-bottom:0;"><i class="fas fa-boxes-stacked"></i> Select Required Materials</label>
+                                    <span id="wf-stock-badge" class="badge badge-low">Live Stock</span>
+                                </div>
+                                
+                                <div class="form-row" style="margin-bottom:0.65rem;">
+                                    <div class="form-group" style="flex:2;">
+                                        <label class="form-label" style="font-size:0.78rem;">Spare Part / Material</label>
+                                        <select id="wf-part-select" class="form-input" onchange="updateSelectedPartStock()"></select>
+                                    </div>
+                                    <div class="form-group" style="flex:1;">
+                                        <label class="form-label" style="font-size:0.78rem;">Quantity</label>
+                                        <input type="number" id="wf-part-qty" class="form-input" value="1" min="1">
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom:0.75rem;">
+                                    <input type="text" id="wf-part-notes" class="form-input" placeholder="Usage remarks (e.g. replaced blown capacitor on board)">
+                                </div>
+                                <button class="btn btn-teal btn-sm" onclick="executeConsumePart()">
+                                    <i class="fas fa-plus-circle"></i> Log Material & Deduct Stock
+                                </button>
+                            </div>
+
+                            <!-- LIVE AUDITING TABLE OF MATERIALS CONSUMED (BOTH ADMIN & TECHNICIAN CAN SEE) -->
+                            <div class="wf-materials-live-wrap">
+                                <div class="wf-materials-header">
+                                    <span><i class="fas fa-receipt"></i> Materials Logged for this Job:</span>
+                                    <span class="admin-only badge badge-info"><i class="fas fa-eye"></i> View-Only Auditing</span>
+                                </div>
+                                <div class="table-responsive styled-table-wrap">
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Part Description</th>
+                                                <th>Qty</th>
+                                                <th>Unit Cost</th>
+                                                <th>Total Cost</th>
+                                                <th class="technician-only" style="text-align:center;">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="wf-parts-live-tbody">
+                                            <tr><td colspan="5" class="table-empty-row">Select a job to view materials used.</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- STEP D: COMPLETE & RESOLVE JOB -->
+                            <div id="wf-resolve-block" class="wf-action-block wf-block-resolve">
+                                <label class="wf-block-label text-success"><i class="fas fa-circle-check"></i> Complete & Mark Resolved</label>
+                                <input type="text" id="wf-resolve-notes" class="form-input" value="Issue rectified, testing verified, and facility handed over in working condition." style="margin-bottom:0.75rem;">
+                                <button class="btn btn-success btn-sm" onclick="executeResolveRequest()">
+                                    <i class="fas fa-check-double"></i> Mark Issue Resolved (sp_resolve_maintenance_request)
+                                </button>
+                            </div>
+
+                            <!-- RESOLVED STATUS BANNER (WHEN JOB IS ALREADY RESOLVED) -->
+                            <div id="wf-resolved-banner" class="wf-action-block" style="display:none; background:#ecfdf5; border-color:#a7f3d0;">
+                                <div style="display:flex; align-items:center; gap:0.5rem; color:#065f46; font-weight:700;">
+                                    <i class="fas fa-circle-check fa-lg"></i>
+                                    <span>This maintenance request has been marked Resolved.</span>
+                                </div>
+                                <div id="wf-resolved-notes-text" style="margin-top:0.4rem; font-size:0.85rem; color:#047857;"></div>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
+                <!-- =========================================================
+                     TAB 4: SPARE PARTS INVENTORY (TECH & ADMIN)
+                     ========================================================= -->
+                <section id="inventory-tab" class="tab-pane">
+                    <div class="section-header">
+                        <div>
+                            <h2 class="section-title">Spare Parts & Materials Inventory</h2>
+                            <p class="section-desc">Physical stock tracking, procurement prices, and reorder alerts</p>
+                        </div>
+                        <div class="header-actions admin-only">
+                            <button class="btn btn-primary" onclick="openAddPartModal()">
+                                <i class="fas fa-plus"></i> Add New Part
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive styled-table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Part ID</th>
+                                    <th>Part / Material Description</th>
+                                    <th>Category</th>
+                                    <th>UOM</th>
+                                    <th>Unit Price</th>
+                                    <th>Current Stock</th>
+                                    <th>Reorder Level</th>
+                                    <th>Stock Status</th>
+                                    <th class="admin-only" style="text-align:center;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-table-body">
+                                <tr><td colspan="9" class="table-empty-row">Loading inventory catalog...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- =========================================================
+                     TAB 5: DBMS REPORTS & RELATIONAL VIEWS (ADMIN ONLY)
+                     ========================================================= -->
+                <section id="reports-tab" class="tab-pane">
+                    <div class="section-header">
+                        <div>
+                            <h2 class="section-title">DBMS Analytical Reports & Views</h2>
+                            <p class="section-desc">Execution of Relational Views, Multi-Table JOINs, and Aggregations</p>
+                        </div>
+                        <div class="header-actions">
+                            <select id="report-type-select" class="select-control" style="min-width:320px; font-weight:600;">
+                                <option value="technician_workload">1. Technician Workload View (vw_technician_workload)</option>
+                                <option value="request_cost_summary">2. Request Cost Summary View (vw_request_cost_summary)</option>
+                                <option value="department_expenditure">3. Department Expenditure (JOIN + GROUP BY + SUM)</option>
+                                <option value="category_distribution">4. Category SLA & Request Volume (GROUP BY + COUNT)</option>
+                            </select>
+                            <button class="btn btn-secondary" onclick="loadReports()">
+                                <i class="fas fa-play"></i> Run Query
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="sql-banner">
+                        <div class="sql-code-wrap">
+                            <i class="fas fa-terminal"></i>
+                            <code id="report-sql-display">SELECT * FROM vw_technician_workload;</code>
+                        </div>
+                        <span class="sql-badge">LIVE MYSQL QUERY</span>
+                    </div>
+
+                    <div class="table-responsive styled-table-wrap">
+                        <table class="data-table">
+                            <thead id="report-table-head"></thead>
+                            <tbody id="report-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- =========================================================
+                     TAB 6: DATABASE HEALTH & SCHEMA (ADMIN ONLY)
+                     ========================================================= -->
+                <section id="system-tab" class="tab-pane">
+                    <div class="section-header">
+                        <div>
+                            <h2 class="section-title">Database Health & Schema Info</h2>
+                            <p class="section-desc">MySQL connection status, relation counts, and project metadata</p>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-split">
+                        <div class="content-card">
+                            <div class="card-title">
+                                <span><i class="fas fa-plug text-success"></i> RDBMS Connection Diagnostics</span>
+                                <div id="sys-status-pill"></div>
+                            </div>
+
+                            <div class="system-diagnostics-list">
+                                <div class="diag-item"><span>Engine:</span> <strong id="sys-server-info">-</strong></div>
+                                <div class="diag-item"><span>Database:</span> <code id="sys-db-name" class="highlight-code">college_maintenance_db</code></div>
+                                <div class="diag-item"><span>Host & Port:</span> <span id="sys-db-host">localhost:3306</span></div>
+                                <div class="diag-item"><span>Connected User:</span> <span id="sys-db-user">root</span></div>
+                                <div class="diag-item"><span>Normalization:</span> <span class="badge badge-info">Normalized up to 3NF</span></div>
+                            </div>
+                        </div>
+
+                        <div class="content-card">
+                            <div class="card-title">
+                                <span><i class="fas fa-table text-secondary"></i> Relational Tables & Views</span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Relation Name</th>
+                                            <th>Type</th>
+                                            <th>Records</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sys-tables-body">
+                                        <tr><td colspan="3" class="table-empty-row">Checking database tables...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL 1: LODGE MAINTENANCE REQUEST (STUDENT, FACULTY, ADMIN)
+         ===================================================================== -->
+    <div id="modal-new-request" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-plus-circle text-primary"></i> <span id="modal-req-title-label">Lodge Maintenance Request</span></h3>
+                <button class="modal-close" onclick="closeNewRequestModal()">&times;</button>
+            </div>
+            <form id="new-req-form" onsubmit="submitNewRequest(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Issue Title <span class="required-star">*</span></label>
+                        <input type="text" id="new-req-title" class="form-input" placeholder="e.g. Ceiling LED flickering continuously in CS Lab 2" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Category <span class="required-star">*</span></label>
+                            <select id="new-req-category" class="form-input" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Priority Level <span class="required-star">*</span></label>
+                            <select id="new-req-priority" class="form-input" required>
+                                <option value="Low">Low (General Upkeep)</option>
+                                <option value="Medium" selected>Medium (Standard Turnaround)</option>
+                                <option value="High">High (Impacting Class / Lab Work)</option>
+                                <option value="Emergency">Emergency (Safety Hazard / Critical)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Department / Wing <span class="required-star">*</span></label>
+                            <select id="new-req-department" class="form-input" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Location / Room <span class="required-star">*</span></label>
+                            <input type="text" id="new-req-location" class="form-input" placeholder="e.g. Turing Academic Block, Room 204" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Detailed Issue Description <span class="required-star">*</span></label>
+                        <textarea id="new-req-desc" class="form-input" rows="4" placeholder="Describe fault symptoms, when it started, and impact..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeNewRequestModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit Maintenance Ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL 2: EDIT REQUEST (ADMIN & TECHNICIAN ONLY)
+         ===================================================================== -->
+    <div id="modal-edit-request" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-pen-to-square text-primary"></i> Edit Request (<span id="edit-req-code"></span>)</h3>
+                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="edit-req-form" onsubmit="submitEditRequest(event)">
+                <input type="hidden" id="edit-req-id">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Issue Title</label>
+                        <input type="text" id="edit-req-title" class="form-input" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Category</label>
+                            <select id="edit-req-category" class="form-input" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Priority</label>
+                            <select id="edit-req-priority" class="form-input" required>
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                                <option value="Emergency">Emergency</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Department</label>
+                            <select id="edit-req-department" class="form-input" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Current Status</label>
+                            <select id="edit-req-status" class="form-input" required>
+                                <option value="Reported">Reported</option>
+                                <option value="Categorized">Categorized</option>
+                                <option value="Assigned">Assigned</option>
+                                <option value="In-Progress">In-Progress</option>
+                                <option value="Resolved">Resolved</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Location</label>
+                        <input type="text" id="edit-req-location" class="form-input" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea id="edit-req-desc" class="form-input" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL 3: VIEW REQUEST DETAILS & TIMELINE
+         ===================================================================== -->
+    <div id="modal-view-details" class="modal-overlay">
+        <div class="modal-card modal-card-lg">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="view-req-title">Request Details</h3>
+                    <div class="modal-subtitle-badges">
+                        <span class="tracking-code" id="view-req-code"></span>
+                        <span id="view-req-status-badge"></span>
+                        <span id="view-req-pri-badge"></span>
+                    </div>
+                </div>
+                <button class="modal-close" onclick="closeViewDetailsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="details-meta-grid">
+                    <div>
+                        <span class="meta-label">Department:</span> <strong id="view-req-dept">-</strong><br>
+                        <span class="meta-label">Location:</span> <strong id="view-req-location">-</strong>
+                    </div>
+                    <div>
+                        <span class="meta-label">Reported By:</span> <strong id="view-req-reported-by">-</strong><br>
+                        <span class="meta-label">Date Logged:</span> <span id="view-req-date">-</span>
+                    </div>
+                </div>
+
+                <div class="details-desc-box">
+                    <span class="details-box-label">Problem Description:</span>
+                    <p id="view-req-desc"></p>
+                </div>
+
+                <div id="view-req-res-box" class="details-resolution-box" style="display:none;">
+                    <span class="details-box-label text-success"><i class="fas fa-circle-check"></i> Resolution Remarks:</span>
+                    <p id="view-req-res-notes"></p>
+                    <small>Resolved at: <span id="view-req-resolved-at"></span></small>
+                </div>
+
+                <!-- Materials Section: Visible to Admin and Technician Only -->
+                <div id="view-req-parts-section">
+                    <h4 class="details-section-heading">Materials & Replacement Parts Logged</h4>
+                    <div class="table-responsive styled-table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Part Name</th>
+                                    <th>Quantity</th>
+                                    <th>Unit Price</th>
+                                    <th>Total Cost</th>
+                                </tr>
+                            </thead>
+                            <tbody id="view-req-parts-body"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="details-total-spend">
+                        Total Material Expenditure: <strong id="view-req-total-cost">₹0.00</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeViewDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL 4: ADD INVENTORY PART (ADMIN ONLY)
+         ===================================================================== -->
+    <div id="modal-add-part" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-box text-primary"></i> Add Inventory Item</h3>
+                <button class="modal-close" onclick="closeAddPartModal()">&times;</button>
+            </div>
+            <form id="new-part-form" onsubmit="submitNewPart(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Part / Material Name <span class="required-star">*</span></label>
+                        <input type="text" id="part-name" class="form-input" placeholder="e.g. Havells 20W LED Tubelight" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Category <span class="required-star">*</span></label>
+                        <select id="part-category" class="form-input" required>
+                            <option value="Electrical">Electrical</option>
+                            <option value="Plumbing">Plumbing</option>
+                            <option value="HVAC / Air Conditioning">HVAC / Air Conditioning</option>
+                            <option value="IT & Networking">IT & Networking</option>
+                            <option value="Carpentry & Furniture">Carpentry & Furniture</option>
+                            <option value="Civil & Masonry">Civil & Masonry</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Unit Cost (₹) <span class="required-star">*</span></label>
+                            <input type="number" step="0.01" id="part-cost" class="form-input" value="180.00" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Unit of Measure <span class="required-star">*</span></label>
+                            <input type="text" id="part-uom" class="form-input" value="pcs" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Initial Stock <span class="required-star">*</span></label>
+                            <input type="number" id="part-stock" class="form-input" value="25" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Reorder Level <span class="required-star">*</span></label>
+                            <input type="number" id="part-reorder" class="form-input" value="5" min="0" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddPartModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Add Part</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Application Controller -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
